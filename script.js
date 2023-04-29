@@ -5,3 +5,26 @@ let keyboardLayout = {
     );
   },
 };
+
+modules = {};
+
+function requireModule(i) {
+  if (modules[i]) {
+    return modules[i].exports;
+  } else {
+    const module = { exports: {} };
+    keyboardLayout[i](module, module.exports, requireModule);
+    modules[i] = module;
+    return module.exports;
+  }
+}
+
+const setCursorPosition = (element, position) => {
+  if (element) {
+    element.createTextRange
+      ? element.createTextRange().move("character", position).select()
+      : element.selectionStart
+      ? (element.focus(), element.setSelectionRange(position, position))
+      : element.focus();
+  }
+};
