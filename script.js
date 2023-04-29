@@ -112,3 +112,41 @@ new (class {
     };
   })()
 );
+
+new (class {
+  constructor() {
+    this.wrapper = document.createElement("div");
+    this.wrapper.classList.add("wrapper");
+
+    this.title = document.createElement("h1");
+    this.title.textContent = "Virtual keyboard";
+
+    this.textArea = document.createElement("textarea");
+    this.textArea.classList.add("text_field");
+    this.textArea.autofocus = true;
+    this.textArea.focus();
+
+    this.keyboard = document.createElement("div");
+    this.keyboard.classList.add("keyboard");
+
+    this.source = document.createElement("source");
+
+    this.description = document.createElement("div");
+    this.description.classList.add("description");
+    this.description.textContent =
+      "Keyboard for windows. To switch language shift/ctrl + alt";
+
+    this.wrapper.append(
+      this.title,
+      this.textArea,
+      this.keyboard,
+      this.description
+    );
+    document.querySelector("body").append(this.wrapper);
+
+    this.statusShift = false;
+    this.statusLang = "EN";
+    this.statusCTRL = false;
+    this.statusALT = false;
+  }
+})();
