@@ -28,3 +28,87 @@ const setCursorPosition = (element, position) => {
       : element.focus();
   }
 };
+
+new (class {
+  constructor(model, view) {
+    this.model = model;
+    this.view = view;
+    this.onTodoListChanged(this.model.arrdata, this.model.data);
+    this.view.clickMousedown(
+      this.model.printAlphanumeric,
+      this.handleChange,
+      this.handleLanguage
+    );
+  }
+
+  onTodoListChanged = (model, view) => {
+    this.view.displayKey(model, view);
+  };
+
+  handleChange = () => {
+    this.model.changeKeyboard(this.view.displayKey.bind(this.view));
+  };
+
+  handleLanguage = () => {
+    this.model.changeLanguage(this.view.displayKey.bind(this.view));
+  };
+})(
+  new (class {
+    constructor() {
+      this.data = JSON.parse(JSON.stringify(s(1)));
+      this.statusShift = false;
+      this.statusLanguage =
+        JSON.parse(localStorage.getItem("this.statusLanguage")) || false;
+      this.arrdata = this.statusLanguage
+        ? this.arrValueFunc("keyRu")
+        : this.arrValueFunc("key");
+    }
+
+    commit() {
+      localStorage.setItem(
+        "this.statusLanguage",
+        JSON.stringify(this.statusLanguage)
+      );
+    }
+
+    arrValueFunc = (arg) => {
+      return this.data.map((element) => {
+        if ("alphanumeric" === element.group) {
+          return element[arg];
+        } else if ("service" === element.group && element.key) {
+          return element.key;
+        }
+      });
+    };
+
+    printAlphanumeric = (arg) => {
+      const index = this.data.findIndex((index) => index.code === arg);
+      return this.arrdata[index];
+    };
+
+    changeKeyboard = (arg) => {
+      this.statusShift = !this.statusShift;
+      if (this.statusLanguage) {
+        if (this.statusShift) {
+          this.arrdata = this.arrValueFunc("shiftKeyRu");
+        } else {
+          this.arrdata = this.arrValueFunc("keyRu");
+        }
+      } else {
+        if (this.statusShift) {
+          this.arrdata = this.arrValueFunc("shiftKeyEN");
+        } else {
+          this.arrdata = this.arrValueFunc("key");
+        }
+      }
+      arg(this.arrdata, this.data);
+    };
+
+    changeLanguage = (arg) => {
+      this.statusLanguage = !this.statusLanguage;
+      this.statusShift = !this.statusShift;
+      this.commit();
+      this.changeKeyboard(arg);
+    };
+  })()
+);
