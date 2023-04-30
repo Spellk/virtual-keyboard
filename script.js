@@ -8,18 +8,18 @@ let keyboardLayout = {
 
 modules = {};
 
-function requireModule(i) {
+function loadModule(i) {
   if (modules[i]) {
     return modules[i].exports;
   } else {
     const module = { exports: {} };
-    keyboardLayout[i](module, module.exports, requireModule);
+    keyboardLayout[i](module, module.exports, loadModule);
     modules[i] = module;
     return module.exports;
   }
 }
 
-const setCursorPosition = (element, position) => {
+function setCursorPosition(element, position) {
   if (element) {
     element.createTextRange
       ? element.createTextRange().move("character", position).select()
@@ -27,51 +27,53 @@ const setCursorPosition = (element, position) => {
       ? (element.focus(), element.setSelectionRange(position, position))
       : element.focus();
   }
-};
+}
 
-new (class {
+new (class KeyboardLayoutController {
   constructor(model, view) {
     this.model = model;
     this.view = view;
-    this.onTodoListChanged(this.model.arrdata, this.model.data);
-    this.view.clickMousedown(
-      this.model.printAlphanumeric,
-      this.handleChange,
-      this.handleLanguage
+    this.updateKeyboardLayout(this.model.layoutData, this.model.data);
+    this.view.initKeyboardEvents(
+      this.model.getAlphanumericValue,
+      this.handleKeyboardChange,
+      this.toggleLanguageHandler
     );
   }
 
-  onTodoListChanged = (model, view) => {
-    this.view.displayKey(model, view);
+  handleKeyboardChange = () => {
+    this.model.updateKeyboardLayout(
+      this.view.updateKeyboardLayout.bind(this.view)
+    );
   };
 
-  handleChange = () => {
-    this.model.changeKeyboard(this.view.displayKey.bind(this.view));
+  updateKeyboardLayout = (model, view) => {
+    this.view.updateKeyboardLayout(model, view);
   };
 
-  handleLanguage = () => {
-    this.model.changeLanguage(this.view.displayKey.bind(this.view));
+  toggleLanguageHandler = () => {
+    this.model.toggleLanguage(this.view.updateKeyboardLayout.bind(this.view));
   };
 })(
-  new (class {
+  new (class KeyboardModel {
     constructor() {
-      this.data = JSON.parse(JSON.stringify(s(1)));
+      this.data = JSON.parse(JSON.stringify(loadModule(1)));
       this.statusShift = false;
       this.statusLanguage =
         JSON.parse(localStorage.getItem("this.statusLanguage")) || false;
-      this.arrdata = this.statusLanguage
-        ? this.arrValueFunc("keyRu")
-        : this.arrValueFunc("key");
+      this.layoutData = this.statusLanguage
+        ? this.mapDataToLayout("keyRu")
+        : this.mapDataToLayout("key");
     }
 
-    commit() {
+    storeLanguageStatus() {
       localStorage.setItem(
         "this.statusLanguage",
         JSON.stringify(this.statusLanguage)
       );
     }
 
-    arrValueFunc = (arg) => {
+    mapDataToLayout = (arg) => {
       return this.data.map((element) => {
         if ("alphanumeric" === element.group) {
           return element[arg];
@@ -81,105 +83,245 @@ new (class {
       });
     };
 
-    printAlphanumeric = (arg) => {
+    getAlphanumericValue = (arg) => {
       const index = this.data.findIndex((index) => index.code === arg);
-      return this.arrdata[index];
+      return this.layoutData[index];
     };
 
-    changeKeyboard = (arg) => {
+    updateKeyboardLayout = (arg) => {
       this.statusShift = !this.statusShift;
       if (this.statusLanguage) {
         if (this.statusShift) {
-          this.arrdata = this.arrValueFunc("shiftKeyRu");
+          this.layoutData = this.mapDataToLayout("shiftKeyRu");
         } else {
-          this.arrdata = this.arrValueFunc("keyRu");
+          this.layoutData = this.mapDataToLayout("keyRu");
         }
       } else {
         if (this.statusShift) {
-          this.arrdata = this.arrValueFunc("shiftKeyEN");
+          this.layoutData = this.mapDataToLayout("shiftKeyEN");
         } else {
-          this.arrdata = this.arrValueFunc("key");
+          this.layoutData = this.mapDataToLayout("key");
         }
       }
-      arg(this.arrdata, this.data);
+      arg(this.layoutData, this.data);
     };
 
-    changeLanguage = (arg) => {
+    toggleLanguage = (arg) => {
       this.statusLanguage = !this.statusLanguage;
       this.statusShift = !this.statusShift;
-      this.commit();
-      this.changeKeyboard(arg);
+      this.storeLanguageStatus();
+      this.updateKeyboardLayout(arg);
     };
+  })(),
+
+  new (class KeyboardController {
+    constructor() {
+      this.wrapper = document.createElement("div");
+      this.wrapper.classList.add("wrapper");
+
+      this.title = document.createElement("h1");
+      this.title.textContent = "Virtual keyboard";
+
+      this.textArea = document.createElement("textarea");
+      this.textArea.classList.add("text_field");
+      this.textArea.autofocus = true;
+      this.textArea.focus();
+
+      this.keyboard = document.createElement("div");
+      this.keyboard.classList.add("keyboard");
+
+      this.source = document.createElement("source");
+
+      this.description = document.createElement("div");
+      this.description.classList.add("description");
+      this.description.textContent =
+        "For Windows. To switch language shift/ctrl + alt";
+
+      this.wrapper.append(this.title, this.textArea, this.keyboard);
+      this.title.insertAdjacentElement("afterend", this.description);
+
+      document.querySelector("body").append(this.wrapper);
+
+      this.statusShift = false;
+      this.statusLang = "EN";
+      this.statusCTRL = false;
+      this.statusALT = false;
+    }
+
+    updateKeyboardLayout(keyboardLayout, keyData) {
+      if (this.keyboard.firstChild) {
+        let keyIndex = 0;
+        for (const key of this.keyboard.childNodes) {
+          key.textContent = keyboardLayout[keyIndex++];
+        }
+      } else {
+        for (const [index, keyValue] of keyboardLayout.entries()) {
+          const key = document.createElement("button");
+          key.classList.add("keys", keyData[index].group);
+          key.id = keyData[index].code;
+          key.type = "button";
+          key.textContent = keyValue;
+          this.keyboard.append(key);
+        }
+      }
+    }
+
+    insertTextAndFocus(insertedText) {
+      this.textArea.setRangeText(
+        insertedText,
+        this.textArea.selectionStart,
+        this.textArea.selectionEnd,
+        "end"
+      ),
+        this.textArea.focus();
+    }
+
+    deleteBackspaceKey(offset = 0) {
+      const cursorPosition = this.textArea.selectionStart - offset,
+        textArray = this.textArea.value.split("");
+      textArray.splice(cursorPosition, 1);
+      this.textArea.value = textArray.join("");
+      setCursorPosition(this.textArea, cursorPosition);
+    }
+
+    handleKeyboardEvent(
+      keyId,
+      keyProcessingFunction,
+      stateToggleFunction,
+      altCtrlFunction,
+      isCapsLockActive = false
+    ) {
+      if (!keyId) return;
+      const keyElement = this.keyboard.querySelector(`#${keyId}`);
+      if (null === keyElement) return;
+      isCapsLockActive;
+      const keyElementDuplicate = this.keyboard.querySelector(`#${keyId}`);
+      if (
+        (keyId && keyElementDuplicate && "CapsLock" !== keyId
+          ? keyElementDuplicate.classList.add("clicker")
+          : "CapsLock" !== keyId ||
+            isCapsLockActive ||
+            this.keyboard
+              .querySelector("#CapsLock")
+              .classList.toggle("clicker"),
+        keyElement.classList.contains("alphanumeric") &&
+          (this.textArea.setRangeText(
+            keyProcessingFunction(keyId),
+            this.textArea.selectionStart,
+            this.textArea.selectionEnd,
+            "end"
+          ),
+          this.textArea.focus()),
+        "Backspace" === keyId &&
+          0 !== this.textArea.selectionStart &&
+          this.deleteBackspaceKey(1),
+        "Delete" === keyId && this.deleteBackspaceKey(),
+        "CapsLock" !== keyId || isCapsLockActive || stateToggleFunction(),
+        ("ShiftLeft" !== keyId && "ShiftRight" !== keyId) ||
+          this.statusShift ||
+          (stateToggleFunction(), (this.statusShift = !this.statusShift)),
+        "Tab" === keyId && this.insertTextAndFocus("    "),
+        "Enter" === keyId && this.insertTextAndFocus("\n"),
+        "ArrowUp" === keyId && this.insertTextAndFocus("▲"),
+        "ArrowDown" === keyId && this.insertTextAndFocus("▼"),
+        "ArrowLeft" === keyId && this.insertTextAndFocus("◄"),
+        "ArrowRight" === keyId && this.insertTextAndFocus("►"))
+      ) {
+        const cursorPosition = this.textArea.selectionStart - 1;
+        e(this.textArea, cursorPosition);
+      }
+      if ("ArrowRight" === keyId) {
+        const cursorPosition = this.textArea.selectionStart + 1;
+        e(this.textArea, cursorPosition);
+      }
+      "AltLeft" === keyId && (this.statusALT = !this.statusALT),
+        "ControlLeft" === keyId && (this.statusCTRL = !this.statusCTRL),
+        this.statusALT && this.statusCTRL && altCtrlFunction();
+    }
+
+    initKeyboardEvents(keyPressCallback, shiftCallback, serviceCallback) {
+      let activeKeyId;
+      this.keyboard.addEventListener("mousedown", (event) => {
+        activeKeyId = event.target.id;
+        this.handleKeyboardEvent(
+          activeKeyId,
+          keyPressCallback,
+          shiftCallback,
+          serviceCallback
+        );
+      });
+
+      document.addEventListener("keydown", (event) => {
+        event.preventDefault();
+        const keyCode = event.code;
+        this.handleKeyboardEvent(
+          keyCode,
+          keyPressCallback,
+          shiftCallback,
+          serviceCallback,
+          event.repeat
+        );
+      });
+
+      this.keyboard.addEventListener("mouseup", (event) => {
+        const isKeys = event.target.classList.contains("keys");
+        const isCapsLock = activeKeyId !== "CapsLock";
+        const isShift =
+          event.target.id === "ShiftLeft" || event.target.id === "ShiftRight";
+        const isControl = activeKeyId === "ControlLeft";
+        const isAlt = activeKeyId === "AltLeft";
+
+        if (isKeys && isCapsLock) {
+          event.target.classList.remove("clicker");
+        }
+
+        if (isShift && this.statusShift) {
+          shiftCallback();
+          this.statusShift = false;
+        }
+
+        if ((isAlt || isControl) && isAlt) {
+          this.statusALT = !this.statusALT;
+        }
+
+        if ((isAlt || isControl) && isControl) {
+          this.statusCTRL = !this.statusCTRL;
+        }
+      });
+
+      this.keyboard.addEventListener("mouseout", (event) => {
+        const isKey = event.target.classList.contains("keys");
+        const isCapsLock = activeKeyId === "CapsLock";
+
+        if (isKey && !isCapsLock) {
+          event.target.classList.remove("clicker");
+        }
+      });
+
+      document.addEventListener("keyup", (event) => {
+        activeKeyId = event.code;
+        const activeKeyElement = this.keyboard.querySelector(`#${activeKeyId}`);
+
+        if (activeKeyId !== "CapsLock" && activeKeyElement) {
+          activeKeyElement.classList.remove("clicker");
+        }
+
+        if (
+          (activeKeyId === "ShiftLeft" || activeKeyId === "ShiftRight") &&
+          this.statusShift
+        ) {
+          shiftCallback();
+          this.statusShift = false;
+        }
+
+        if (activeKeyId === "AltLeft") {
+          this.statusALT = !this.statusALT;
+        }
+
+        if (activeKeyId === "ControlLeft") {
+          this.statusCTRL = !this.statusCTRL;
+        }
+      });
+    }
   })()
 );
-
-new (class {
-  constructor() {
-    this.wrapper = document.createElement("div");
-    this.wrapper.classList.add("wrapper");
-
-    this.title = document.createElement("h1");
-    this.title.textContent = "Virtual keyboard";
-
-    this.textArea = document.createElement("textarea");
-    this.textArea.classList.add("text_field");
-    this.textArea.autofocus = true;
-    this.textArea.focus();
-
-    this.keyboard = document.createElement("div");
-    this.keyboard.classList.add("keyboard");
-
-    this.source = document.createElement("source");
-
-    this.description = document.createElement("div");
-    this.description.classList.add("description");
-    this.description.textContent =
-      "Keyboard for windows. To switch language shift/ctrl + alt";
-
-    this.wrapper.append(
-      this.title,
-      this.textArea,
-      this.keyboard,
-      this.description
-    );
-    document.querySelector("body").append(this.wrapper);
-
-    this.statusShift = false;
-    this.statusLang = "EN";
-    this.statusCTRL = false;
-    this.statusALT = false;
-  }
-})();
-
-displayKey(keyboardLayout, keyData) {
-  if (this.keyboard.firstChild) {
-    let keyIndex = 0;
-    for (const key of this.keyboard.childNodes) {
-      key.textContent = keyboardLayout[keyIndex++];
-    }
-  } else {
-    for (const [index, keyValue] of keyboardLayout.entries()) {
-      const key = document.createElement("button");
-      key.classList.add("keys", keyData[index].group);
-      key.id = keyData[index].code;
-      key.type = "button";
-      key.textContent = keyValue;
-      this.keyboard.append(key);
-    }
-  }
-}
-
-keyDeleteBackspace(t = 0) {
-  const s = this.textArea.selectionStart - t,
-    i = this.textArea.value.split("");
-  i.splice(s, 1), (this.textArea.value = i.join("")), e(this.textArea, s);
-}
-keyTabEnter(e) {
-  this.textArea.setRangeText(
-    e,
-    this.textArea.selectionStart,
-    this.textArea.selectionEnd,
-    "end"
-  ),
-    this.textArea.focus();
-}
