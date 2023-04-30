@@ -150,3 +150,36 @@ new (class {
     this.statusALT = false;
   }
 })();
+
+displayKey(keyboardLayout, keyData) {
+  if (this.keyboard.firstChild) {
+    let keyIndex = 0;
+    for (const key of this.keyboard.childNodes) {
+      key.textContent = keyboardLayout[keyIndex++];
+    }
+  } else {
+    for (const [index, keyValue] of keyboardLayout.entries()) {
+      const key = document.createElement("button");
+      key.classList.add("keys", keyData[index].group);
+      key.id = keyData[index].code;
+      key.type = "button";
+      key.textContent = keyValue;
+      this.keyboard.append(key);
+    }
+  }
+}
+
+keyDeleteBackspace(t = 0) {
+  const s = this.textArea.selectionStart - t,
+    i = this.textArea.value.split("");
+  i.splice(s, 1), (this.textArea.value = i.join("")), e(this.textArea, s);
+}
+keyTabEnter(e) {
+  this.textArea.setRangeText(
+    e,
+    this.textArea.selectionStart,
+    this.textArea.selectionEnd,
+    "end"
+  ),
+    this.textArea.focus();
+}
